@@ -1,0 +1,86 @@
+name: Public Showcase Safety
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  public-safety:
+    name: Validate disclosure-safe showcase
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate showcase manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '^repository_class: public-showcase$' .osystic/repository.yml
+          grep -q '^visibility: public$' .osystic/repository.yml
+          grep -q '^  source_code_included: false$' .osystic/repository.yml
+          grep -q '^  contact_information_included: false$' .osystic/repository.yml
+
+      - name: Confirm required public artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            README.md
+            case-study.md
+            SECURITY.md
+            NOTICE.md
+            assets/architecture.svg
+            assets/validation.svg
+            docs/technical-overview.md
+            docs/validation-evidence.md
+            docs/disclosure-boundary.md
+            docs/standardization-acceptance.md
+            .osystic/repository.yml
+          )
+          for path in "${required[@]}"; do
+            test -f "$path" || { echo "Missing required public artifact: $path"; exit 1; }
+          done
+
+      - name: Reject confidential implementation source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -Ei '\.(mq4|ex4|mq5|ex5|pine|py|js|ts|cpp|c|h)$'; then
+            echo 'Implementation source file detected in public showcase.'
+            exit 1
+          fi
+
+      - name: Scan text for likely secrets or contact details
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=()
+          while IFS= read -r -d '' path; do
+            case "$path" in
+              *.svg|*.png|*.jpg|*.jpeg|*.gif|*.pdf) ;;
+              *) files+=("$path") ;;
+            esac
+          done < <(git ls-files -z)
+          if ((${#files[@]})) && grep -EIn --binary-files=without-match \
+            '([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9_-]{20,}' \
+            "${files[@]}"; then
+            echo 'Potential contact detail or secret detected.'
+            exit 1
+          fi
+
+      - name: Confirm disclosure language
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'PUBLIC SHOWCASE · SANITIZED · PORTFOLIO-SAFE' README.md
+          grep -Fq 'Public vs. private repository boundary' README.md
+          if git grep -EIn -e 'Daniel|daniel66049|freelancer\.com/projects/40543520' -- ':!.github/workflows/public-safety.yml'; then
+            echo 'Potential client-identifying material detected.'
+            exit 1
+          fi
