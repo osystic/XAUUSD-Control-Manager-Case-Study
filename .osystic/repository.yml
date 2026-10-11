@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 repository_class: public-showcase
 visibility: public
 lifecycle: maintenance
