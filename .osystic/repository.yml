@@ -22,3 +22,14 @@ delivery:
   default_branch: main
   ci_required: true
   production_environment: false
+
+project:
+  key: xauusd-control-manager
+  name: XAUUSD Control Manager
+  status: completed
+
+website:
+  eligible: true
+  status: ready-for-review
+  canonical_slug: xauusd-control-manager
+  auto_sync: true
